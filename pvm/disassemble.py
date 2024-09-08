@@ -127,25 +127,19 @@ class ASTVisualizer(ast.NodeVisitor):
         self.visit(tree)
         return self.graph
 
-# FizzBuzz function
-code = """
-def fizzbuzz(n):
-    if n % 3 == 0 and n % 5 == 0:
-        return "FizzBuzz"
-    elif n % 3 == 0:
-        return "Fizz"
-    elif n % 5 == 0:
-        return "Buzz"
-    else:
-        return str(n)
-"""
+def generate_ast_visualization(code):
+    tree = ast.parse(code)
+    visualizer = ASTVisualizer()
+    graph = visualizer.visualize(tree)
+    return graph
 
-# Parse the Python code into an AST
-tree = ast.parse(code)
+def save_ast_visualization(graph, filename):
+    graph.render(filename, view=True)
 
-# Create an AST visualizer instance
-visualizer = ASTVisualizer()
+if __name__ == '__main__':
+    # FizzBuzz function
+    with open('sample.py', 'r') as file:
+        code = file.read()
 
-# Generate and render the visualization
-graph = visualizer.visualize(tree)
-graph.render('fizzbuzz_ast', view=True)
+    graph = generate_ast_visualization(code)
+    save_ast_visualization(graph, 'fizzbuzz_ast')
