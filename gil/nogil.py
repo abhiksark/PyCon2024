@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 def main():
     start_time = time.time()
     
-    total_iterations = 100_000_000
+    total_iterations = 1000_000_000
     num_threads = 8
     chunk_size = total_iterations // num_threads
     

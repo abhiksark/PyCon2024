@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPython Large Number Addition Demo</title>
+    <style>
+        body {
+            font-family: monospace;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        .py-long-object {
+            border: 2px solid #3498db;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 20px;
+            background-color: #ecf0f1;
+        }
+        .struct-info {
+            background-color: #bdc3c7;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .digits {
+            display: flex;
+            flex-direction: row-reverse;
+            flex-wrap: wrap;
+        }
+        .digit {
+            width: 120px;
+            height: 30px;
+            border: 1px solid #7f8c8d;
+            margin: 2px;
+            text-align: center;
+            line-height: 30px;
+            position: relative;
+            background-color: #ecf0f1;
+            transition: background-color 0.5s ease;
+        }
+        .carry {
+            position: absolute;
+            top: -15px;
+            right: 0;
+            color: #c0392b;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        .highlight {
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { background-color: #f1c40f; }
+            50% { background-color: #f39c12; }
+            100% { background-color: #f1c40f; }
+        }
+        #status {
+            text-align: center;
+            font-size: 1.2em;
+            margin-top: 20px;
+            color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CPython Large Number Addition Demo</h1>
+        
+        <h2>Number 1</h2>
+        <div class="py-long-object" id="num1">
+            <div class="struct-info" id="struct1"></div>
+            <div class="digits" id="digits1"></div>
+        </div>
+        
+        <h2>Number 2</h2>
+        <div class="py-long-object" id="num2">
+            <div class="struct-info" id="struct2"></div>
+            <div class="digits" id="digits2"></div>
+        </div>
+        
+        <h2>Result</h2>
+        <div class="py-long-object" id="result">
+            <div class="struct-info" id="structResult"></div>
+            <div class="digits" id="digitsResult"></div>
+        </div>
+        
+        <div id="status">Initializing...</div>
+    </div>
+
+    <script>
+        const BASE = 2 ** 30;  // 1 << 30
+        const MASK = BASE - 1;
+        
+        class PyObject {
+            constructor(ob_refcnt, ob_type) {
+                this.ob_refcnt = ob_refcnt;
+                this.ob_type = ob_type;
+            }
+        }
+        
+        class PyVarObject extends PyObject {
+            constructor(ob_refcnt, ob_type, ob_size) {
+                super(ob_refcnt, ob_type);
+                this.ob_size = ob_size;
+            }
+        }
+        
+        class PyLongObject extends PyVarObject {
+            constructor(ob_refcnt, ob_type, ob_size, ob_digit) {
+                super(ob_refcnt, ob_type, ob_size);
+                this.ob_digit = ob_digit;
+            }
+        }
+        
+        // 3,141,592,653,589,793,238,462,643,383,279 in base 2^30
+        const num1 = new PyLongObject(1, "PyLong_Type", 4, ["462643383", "279793238", "653589793", "003141592"]);
+        // 2,718,281,828,459,045,235,360,287,471,352 in base 2^30
+        const num2 = new PyLongObject(1, "PyLong_Type", 4, ["287471352", "235360287", "828459045", "002718281"]);
+        let result = new PyLongObject(1, "PyLong_Type", 0, []);
+        let carry = 0;
+        let step = 0;
+
+        function updateDisplay() {
+            updateStruct('struct1', num1);
+            updateStruct('struct2', num2);
+            updateStruct('structResult', result);
+
+            updateDigits('digits1', num1.ob_digit);
+            updateDigits('digits2', num2.ob_digit);
+            updateDigits('digitsResult', result.ob_digit);
+        }
+
+        function updateStruct(id, obj) {
+            const container = document.getElementById(id);
+            container.innerHTML = `
+                <p><strong>ob_refcnt:</strong> ${obj.ob_refcnt}</p>
+                <p><strong>ob_type:</strong> ${obj.ob_type}</p>
+                <p><strong>ob_size:</strong> ${obj.ob_size}</p>
+            `;
+        }
+
+        function updateDigits(id, digits) {
+            const container = document.getElementById(id);
+            container.innerHTML = '';
+            digits.forEach((digit, index) => {
+                const digitElement = document.createElement('div');
+                digitElement.className = 'digit';
+                digitElement.textContent = digit;
+                if (step === index) {
+                    digitElement.classList.add('highlight');
+                }
+                if (id === 'digitsResult' && index === step) {
+                    const carryElement = document.createElement('div');
+                    carryElement.className = 'carry';
+                    carryElement.textContent = carry.toString().padStart(9, '0');
+                    digitElement.appendChild(carryElement);
+                }
+                container.appendChild(digitElement);
+            });
+        }
+
+        function nextStep() {
+            if (step < Math.max(num1.ob_size, num2.ob_size)) {
+                const sum = BigInt(num1.ob_digit[step] || 0) + BigInt(num2.ob_digit[step] || 0) + BigInt(carry);
+                result.ob_digit[step] = (sum & BigInt(MASK)).toString().padStart(9, '0');
+                carry = Number(sum >> BigInt(30));
+                document.getElementById('status').textContent = `Adding digits: ${num1.ob_digit[step] || 0} + ${num2.ob_digit[step] || 0} + ${carry} (previous carry) = ${sum}`;
+                step++;
+                result.ob_size = step;
+            } else {
+                while (carry > 0) {
+                    const sum = BigInt(carry);
+                    result.ob_digit[step] = (sum & BigInt(MASK)).toString().padStart(9, '0');
+                    carry = Number(sum >> BigInt(30));
+                    document.getElementById('status').textContent = `Adding carry: ${carry} (previous carry) = ${sum}`;
+                    step++;
+                    result.ob_size = step;
+                }
+                document.getElementById('status').textContent = 'Addition completed! Restarting in 10 seconds...';
+                return false;
+            }
+            updateDisplay();
+            return true;
+        }
+
+        function runAnimation() {
+            if (nextStep()) {
+                setTimeout(runAnimation, 2000);
+            } else {
+                setTimeout(() => {
+                    step = 0;
+                    result = new PyLongObject(1, "PyLong_Type", 0, []);
+                    carry = 0;
+                    document.getElementById('status').textContent = 'Restarting...';
+                    updateDisplay();
+                    setTimeout(runAnimation, 2000);
+                }, 10000);
+            }
+        }
+
+        updateDisplay();
+        setTimeout(runAnimation, 2000);
+    </script>
+</body>
+</html>
