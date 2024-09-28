@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python GIL Execution Visualization</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f0f0; }
+        #container { text-align: center; }
+        svg { max-width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>Python GIL Execution Visualization</h1>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
+            <!-- Background -->
+            <rect x="0" y="0" width="800" height="500" fill="#ffffff"/>
+            
+            <!-- Python Interpreter -->
+            <rect x="50" y="20" width="700" height="380" fill="#e6e6e6" stroke="#000" stroke-width="2"/>
+            <text x="400" y="45" text-anchor="middle" font-size="18" font-weight="bold">Python Interpreter</text>
+            
+            <!-- GIL -->
+            <g id="gil">
+                <rect x="370" y="70" width="60" height="30" fill="#FFD700" stroke="#000" stroke-width="2"/>
+                <text x="400" y="90" text-anchor="middle" font-size="14">GIL</text>
+            </g>
+            
+            <!-- Threads -->
+            <g id="thread1"><rect x="100" y="150" width="100" height="40" fill="#FF4136" stroke="#000" stroke-width="2"/><text x="150" y="175" text-anchor="middle" font-size="14" fill="#FFFFFF">Thread 1</text></g>
+            <g id="thread2"><rect x="250" y="150" width="100" height="40" fill="#2ECC40" stroke="#000" stroke-width="2"/><text x="300" y="175" text-anchor="middle" font-size="14" fill="#FFFFFF">Thread 2</text></g>
+            <g id="thread3"><rect x="400" y="150" width="100" height="40" fill="#0074D9" stroke="#000" stroke-width="2"/><text x="450" y="175" text-anchor="middle" font-size="14" fill="#FFFFFF">Thread 3</text></g>
+            <g id="thread4"><rect x="550" y="150" width="100" height="40" fill="#FF851B" stroke="#000" stroke-width="2"/><text x="600" y="175" text-anchor="middle" font-size="14" fill="#FFFFFF">Thread 4</text></g>
+            
+            <!-- OS Thread Scheduler -->
+            <rect x="50" y="250" width="700" height="50" fill="#B10DC9" stroke="#000" stroke-width="2"/>
+            <text x="400" y="280" text-anchor="middle" font-size="16" fill="#FFFFFF">Operating System Thread Scheduler</text>
+            
+            <!-- Arrows -->
+            <path id="gilToThread" d="M400 100 Q 400 125 400 150" fill="none" stroke="#000" stroke-width="2" marker-end="url(#arrowhead)" opacity="0.2"/>
+            <path id="threadToScheduler" d="M400 190 Q 400 220 400 250" fill="none" stroke="#000" stroke-width="2" marker-end="url(#arrowhead)"/>
+            
+            <!-- Arrowhead definition -->
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" />
+                </marker>
+            </defs>
+            
+            <!-- Legend -->
+            <rect x="50" y="320" width="700" height="140" fill="#f9f9f9" stroke="#000" stroke-width="1"/>
+            <text x="400" y="340" text-anchor="middle" font-size="16" font-weight="bold">How the GIL Actually Works</text>
+            <text x="60" y="360" font-size="14">1. The GIL is a mutex (lock) that protects access to Python objects.</text>
+            <text x="60" y="380" font-size="14">2. A thread must acquire the GIL before executing Python bytecode.</text>
+            <text x="60" y="400" font-size="14">3. The GIL is released and re-acquired periodically during execution (every 5ms by default).</text>
+            <text x="60" y="420" font-size="14">4. I/O operations and long-running operations in C extensions can release the GIL.</text>
+            <text x="60" y="440" font-size="14">5. The OS scheduler decides which thread runs next when the GIL is released.</text>
+        </svg>
+        <p id="status">Idle</p>
+    </div>
+
+    <script>
+        const threads = Array.from({ length: 4 }, (_, i) => document.getElementById(`thread${i + 1}`));
+        const gil = document.getElementById('gil');
+        const gilToThread = document.getElementById('gilToThread');
+        const status = document.getElementById('status');
+        const colors = ['#FF4136', '#2ECC40', '#0074D9', '#FF851B'];
+
+        function animateThread(threadIndex) {
+            return new Promise((resolve) => {
+                const thread = threads[threadIndex];
+                const color = colors[threadIndex];
+
+                thread.style.transition = 'transform 0.5s';
+                gil.style.transition = 'fill 0.5s';
+                gilToThread.style.transition = 'opacity 0.5s';
+
+                // Thread acquires GIL
+                gil.style.fill = color;
+                gilToThread.style.opacity = '1';
+                gilToThread.setAttribute('d', `M400 100 Q 400 125 ${thread.getBBox().x + 50} 150`);
+                status.textContent = `Thread ${threadIndex + 1} acquired GIL`;
+
+                setTimeout(() => {
+                    // Thread executes
+                    status.textContent = `Thread ${threadIndex + 1} is executing`;
+
+                    setTimeout(() => {
+                        // Thread releases GIL
+                        gil.style.fill = '#FFD700';
+                        gilToThread.style.opacity = '0.2';
+                        status.textContent = `Thread ${threadIndex + 1} released the GIL`;
+
+                        setTimeout(resolve, 500);
+                    }, 1000);
+                }, 1000);
+            });
+        }
+
+        async function runAnimation() {
+            while (true) {
+                for (let i = 0; i < 4; i++) {
+                    await animateThread(i);
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+        }
+
+        runAnimation();
+    </script>
+</body>
+</html>
